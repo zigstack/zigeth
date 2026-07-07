@@ -4,6 +4,7 @@ const PrivateKey = @import("../crypto/secp256k1.zig").PrivateKey;
 const Wallet = @import("./wallet.zig").Wallet;
 const keccak = @import("../crypto/keccak.zig");
 const hex_module = @import("../utils/hex.zig");
+const time_compat = @import("../time_compat.zig");
 
 /// Keystore version
 pub const KeystoreVersion = enum {
@@ -147,9 +148,7 @@ pub const Keystore = struct {
         // NOT cryptographically secure — callers relying on keystore
         // generation should keep this branch disabled in production
         // until the Io RNG is plumbed through.
-        var ts: std.c.timespec = undefined;
-        _ = std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts);
-        var prng = std.Random.DefaultPrng.init(@intCast(ts.sec));
+        var prng = std.Random.DefaultPrng.init(@intCast(time_compat.nowSeconds()));
         prng.random().bytes(&salt);
         prng.random().bytes(&iv);
         prng.random().bytes(&id);

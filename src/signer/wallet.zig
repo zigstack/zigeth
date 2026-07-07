@@ -6,6 +6,7 @@ const u256ToU64 = @import("../primitives/uint.zig").u256ToU64;
 const Transaction = @import("../types/transaction.zig").Transaction;
 const PrivateKey = @import("../crypto/secp256k1.zig").PrivateKey;
 const PublicKey = @import("../crypto/secp256k1.zig").PublicKey;
+const time_compat = @import("../time_compat.zig");
 const Signer = @import("../crypto/ecdsa.zig").Signer;
 const keccak = @import("../crypto/keccak.zig");
 const SignerInterface = @import("./signer.zig").SignerInterface;
@@ -63,9 +64,7 @@ pub const Wallet = struct {
 
     /// Generate a new random wallet
     pub fn generate(allocator: std.mem.Allocator) !Wallet {
-        var ts: std.c.timespec = undefined;
-        _ = std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts);
-        var prng = std.Random.DefaultPrng.init(@intCast(ts.sec));
+        var prng = std.Random.DefaultPrng.init(@intCast(time_compat.nowSeconds()));
         const random = prng.random();
         const private_key = try PrivateKey.generate(random);
         return try init(allocator, private_key);

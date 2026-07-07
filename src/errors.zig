@@ -1,6 +1,7 @@
 /// Centralized error handling for Zigeth
 /// Provides standardized error sets and formatting utilities
 const std = @import("std");
+const time_compat = @import("time_compat.zig");
 
 /// Core Zigeth error set - common errors across all modules
 pub const ZigethError = error{
@@ -496,12 +497,9 @@ pub const ErrorRecovery = struct {
                     delay_ms,
                 });
 
-                // std.time.sleep was removed in Zig 0.16; use libc.
-                var req: std.c.timespec = .{
-                    .sec = @intCast(delay_ms / 1000),
-                    .nsec = @intCast((delay_ms % 1000) * std.time.ns_per_ms),
-                };
-                _ = std.c.nanosleep(&req, null);
+                // std.time.sleep was removed in Zig 0.16; use the
+                // cross-platform helper.
+                time_compat.sleepMs(delay_ms);
                 delay_ms *= 2; // Exponential backoff
             }
         }

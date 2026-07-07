@@ -3,6 +3,7 @@ const uint_utils = @import("../primitives/uint.zig");
 const Provider = @import("../providers/provider.zig").Provider;
 const Address = @import("../primitives/address.zig").Address;
 const Transaction = @import("../types/transaction.zig").Transaction;
+const time_compat = @import("../time_compat.zig");
 
 /// Gas price strategy
 pub const GasStrategy = enum {
@@ -107,9 +108,7 @@ pub const GasMiddleware = struct {
     /// Get EIP-1559 fee data
     pub fn getFeeData(self: *GasMiddleware) !FeeData {
         // Check cache
-        var ts: std.c.timespec = undefined;
-        _ = std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts);
-        const now: i64 = @intCast(ts.sec);
+        const now: i64 = time_compat.nowSeconds();
         if (self.cached_fee_data) |cached| {
             if (now - self.cache_timestamp < self.cache_ttl_seconds) {
                 return cached;

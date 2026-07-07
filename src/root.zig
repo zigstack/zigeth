@@ -211,6 +211,10 @@ pub const utils = struct {
     pub const checksum = @import("utils/checksum.zig");
 };
 
+/// Cross-platform wall-clock + sleep helpers (0.16 moved std.time.timestamp
+/// / std.time.sleep behind std.Io).
+pub const time_compat = @import("time_compat.zig");
+
 pub const middleware = struct {
     const gas_mod = @import("middleware/gas.zig");
     const nonce_mod = @import("middleware/nonce.zig");

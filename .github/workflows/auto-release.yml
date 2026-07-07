@@ -248,10 +248,10 @@ jobs:
           ref: ${{ needs.determine-release.outputs.new_version }}
 
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
+        uses: mlugg/setup-zig@v2
         with:
-          version: 0.15.2
-          cache: false
+          version: 0.16.0
+          use-cache: false
 
       - name: Create cache directories (Unix)
         if: runner.os != 'Windows'

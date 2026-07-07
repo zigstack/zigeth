@@ -1,13 +1,12 @@
 const std = @import("std");
 const Address = @import("../primitives/address.zig").Address;
 const Provider = @import("../providers/provider.zig").Provider;
+const time_compat = @import("../time_compat.zig");
 
 // std.time.timestamp / milliTimestamp were removed in Zig 0.16 (moved
-// under std.Io). Read the wall clock directly via libc.
+// under std.Io). Read the wall clock via the cross-platform helper.
 fn wallClockSeconds() i64 {
-    var ts: std.c.timespec = undefined;
-    _ = std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts);
-    return @intCast(ts.sec);
+    return time_compat.nowSeconds();
 }
 
 /// Nonce management strategy
