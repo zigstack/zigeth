@@ -592,46 +592,46 @@ const JsonObjectWrapper = struct {
                     self.allocator.free(entry.value_ptr.string);
                 }
             }
-            self.value.object.deinit();
+            self.value.object.deinit(self.allocator);
         }
     }
 };
 
 /// Convert CallParams to JSON object
 fn callParamsToJson(allocator: std.mem.Allocator, params: types.CallParams) !JsonObjectWrapper {
-    var obj = std.json.ObjectMap.init(allocator);
+    var obj = std.json.ObjectMap.empty;
 
     // Required fields
     if (params.to) |to| {
         const to_hex = try to.toHex(allocator);
-        try obj.put("to", .{ .string = to_hex });
+        try obj.put(allocator, "to", .{ .string = to_hex });
     }
 
     // Optional fields
     if (params.from) |from| {
         const from_hex = try from.toHex(allocator);
-        try obj.put("from", .{ .string = from_hex });
+        try obj.put(allocator, "from", .{ .string = from_hex });
     }
 
     if (params.data) |data| {
         const hex_module = @import("../utils/hex.zig");
         const data_hex = try hex_module.bytesToHex(allocator, data);
-        try obj.put("data", .{ .string = data_hex });
+        try obj.put(allocator, "data", .{ .string = data_hex });
     }
 
     if (params.value) |value| {
         const value_hex = try uint_utils.u256ToHex(value, allocator);
-        try obj.put("value", .{ .string = value_hex });
+        try obj.put(allocator, "value", .{ .string = value_hex });
     }
 
     if (params.gas) |gas| {
         const gas_hex = try std.fmt.allocPrint(allocator, "0x{x}", .{gas});
-        try obj.put("gas", .{ .string = gas_hex });
+        try obj.put(allocator, "gas", .{ .string = gas_hex });
     }
 
     if (params.gas_price) |gas_price| {
         const gp_hex = try uint_utils.u256ToHex(gas_price, allocator);
-        try obj.put("gasPrice", .{ .string = gp_hex });
+        try obj.put(allocator, "gasPrice", .{ .string = gp_hex });
     }
 
     return JsonObjectWrapper{
@@ -642,40 +642,40 @@ fn callParamsToJson(allocator: std.mem.Allocator, params: types.CallParams) !Jso
 
 /// Convert TransactionParams to JSON object
 fn transactionParamsToJson(allocator: std.mem.Allocator, params: types.TransactionParams) !JsonObjectWrapper {
-    var obj = std.json.ObjectMap.init(allocator);
+    var obj = std.json.ObjectMap.empty;
 
     const from_hex = try params.from.toHex(allocator);
-    try obj.put("from", .{ .string = from_hex });
+    try obj.put(allocator, "from", .{ .string = from_hex });
 
     if (params.to) |to| {
         const to_hex = try to.toHex(allocator);
-        try obj.put("to", .{ .string = to_hex });
+        try obj.put(allocator, "to", .{ .string = to_hex });
     }
 
     if (params.data) |data| {
         const hex_module = @import("../utils/hex.zig");
         const data_hex = try hex_module.bytesToHex(allocator, data);
-        try obj.put("data", .{ .string = data_hex });
+        try obj.put(allocator, "data", .{ .string = data_hex });
     }
 
     if (params.value) |value| {
         const value_hex = try uint_utils.u256ToHex(value, allocator);
-        try obj.put("value", .{ .string = value_hex });
+        try obj.put(allocator, "value", .{ .string = value_hex });
     }
 
     if (params.gas) |gas| {
         const gas_hex = try std.fmt.allocPrint(allocator, "0x{x}", .{gas});
-        try obj.put("gas", .{ .string = gas_hex });
+        try obj.put(allocator, "gas", .{ .string = gas_hex });
     }
 
     if (params.gas_price) |gas_price| {
         const gp_hex = try uint_utils.u256ToHex(gas_price, allocator);
-        try obj.put("gasPrice", .{ .string = gp_hex });
+        try obj.put(allocator, "gasPrice", .{ .string = gp_hex });
     }
 
     if (params.nonce) |nonce| {
         const nonce_hex = try std.fmt.allocPrint(allocator, "0x{x}", .{nonce});
-        try obj.put("nonce", .{ .string = nonce_hex });
+        try obj.put(allocator, "nonce", .{ .string = nonce_hex });
     }
 
     return JsonObjectWrapper{
@@ -686,21 +686,21 @@ fn transactionParamsToJson(allocator: std.mem.Allocator, params: types.Transacti
 
 /// Convert FilterOptions to JSON object
 fn filterOptionsToJson(allocator: std.mem.Allocator, filter: types.FilterOptions) !JsonObjectWrapper {
-    var obj = std.json.ObjectMap.init(allocator);
+    var obj = std.json.ObjectMap.empty;
 
     if (filter.from_block) |from| {
         const from_str = try blockParameterToString(allocator, from);
-        try obj.put("fromBlock", .{ .string = from_str });
+        try obj.put(allocator, "fromBlock", .{ .string = from_str });
     }
 
     if (filter.to_block) |to| {
         const to_str = try blockParameterToString(allocator, to);
-        try obj.put("toBlock", .{ .string = to_str });
+        try obj.put(allocator, "toBlock", .{ .string = to_str });
     }
 
     if (filter.address) |addr| {
         const addr_hex = try addr.toHex(allocator);
-        try obj.put("address", .{ .string = addr_hex });
+        try obj.put(allocator, "address", .{ .string = addr_hex });
     }
 
     if (filter.topics) |topics| {
@@ -713,12 +713,12 @@ fn filterOptionsToJson(allocator: std.mem.Allocator, filter: types.FilterOptions
                 try topics_array.append(.null);
             }
         }
-        try obj.put("topics", .{ .array = topics_array });
+        try obj.put(allocator, "topics", .{ .array = topics_array });
     }
 
     if (filter.block_hash) |hash| {
         const hash_hex = try hash.toHex(allocator);
-        try obj.put("blockHash", .{ .string = hash_hex });
+        try obj.put(allocator, "blockHash", .{ .string = hash_hex });
     }
 
     return JsonObjectWrapper{

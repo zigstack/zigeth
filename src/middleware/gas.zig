@@ -107,7 +107,9 @@ pub const GasMiddleware = struct {
     /// Get EIP-1559 fee data
     pub fn getFeeData(self: *GasMiddleware) !FeeData {
         // Check cache
-        const now = std.time.timestamp();
+        var ts: std.c.timespec = undefined;
+        _ = std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts);
+        const now: i64 = @intCast(ts.sec);
         if (self.cached_fee_data) |cached| {
             if (now - self.cache_timestamp < self.cache_ttl_seconds) {
                 return cached;

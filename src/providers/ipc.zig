@@ -2,12 +2,26 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Provider = @import("./provider.zig").Provider;
 
+// Zig 0.16 moved networking behind std.Io; the previous std.net.Stream
+// API is gone. Until this provider is ported to the Io-based sockets,
+// we keep a placeholder handle so downstream code keeps compiling.
+pub const Stream = struct {
+    // No usable state; connect() below always fails NotImplemented.
+    pub fn close(_: Stream) void {}
+    pub fn write(_: Stream, _: []const u8) !usize {
+        return error.NotImplemented;
+    }
+    pub fn read(_: Stream, _: []u8) !usize {
+        return error.NotImplemented;
+    }
+};
+
 /// IPC provider for local Ethereum nodes (Unix socket communication)
 pub const IpcProvider = struct {
     provider: Provider,
     socket_path: []const u8,
     allocator: std.mem.Allocator,
-    stream: ?std.net.Stream,
+    stream: ?Stream,
     connected: bool,
 
     /// Create a new IPC provider
@@ -52,10 +66,9 @@ pub const IpcProvider = struct {
             return error.WindowsNamedPipesNotSupported;
         }
 
-        // Connect to Unix socket
-        const stream = try std.net.connectUnixSocket(self.socket_path);
-        self.stream = stream;
-        self.connected = true;
+        // std.net was removed in Zig 0.16; connectUnixSocket is not yet
+        // ported. Surface as NotImplemented until the Io-based sockets land.
+        return error.NotImplemented;
     }
 
     /// Disconnect from IPC socket
@@ -116,7 +129,7 @@ pub const IpcProvider = struct {
     }
 
     /// Get stream for direct access
-    pub fn getStream(self: *IpcProvider) ?std.net.Stream {
+    pub fn getStream(self: *IpcProvider) ?Stream {
         return self.stream;
     }
 };

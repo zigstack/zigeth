@@ -346,6 +346,18 @@ fn parseWsUrl(url: []const u8) !WsUrlInfo {
     };
 }
 
+// Zig 0.16 removed std.net; keep a stub Stream so the WebSocket client
+// module still compiles. Actual TCP transport is a follow-up port.
+const WsStream = struct {
+    pub fn close(_: WsStream) void {}
+    pub fn write(_: WsStream, _: []const u8) !usize {
+        return error.NotImplemented;
+    }
+    pub fn read(_: WsStream, _: []u8) !usize {
+        return error.NotImplemented;
+    }
+};
+
 /// Simple WebSocket client (basic implementation)
 const WsClient = struct {
     allocator: std.mem.Allocator,
@@ -353,22 +365,14 @@ const WsClient = struct {
     port: u16,
     path: []const u8,
     use_tls: bool,
-    stream: ?std.net.Stream,
+    stream: ?WsStream,
 
     /// Connect to WebSocket server
     pub fn connect(self: *WsClient) !void {
-        if (self.use_tls) {
-            // TLS not implemented yet
-            return error.TlsNotSupported;
-        }
-
-        // Connect via TCP
-        const address = try std.net.Address.parseIp(self.host, self.port);
-        const stream = try std.net.tcpConnectToAddress(address);
-        self.stream = stream;
-
-        // Send WebSocket handshake
-        try self.sendHandshake();
+        _ = self;
+        // std.net was removed in Zig 0.16; the TCP+TLS transport hasn't
+        // been ported to the new Io-based sockets yet.
+        return error.NotImplemented;
     }
 
     /// Disconnect from WebSocket server

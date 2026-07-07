@@ -2,21 +2,21 @@
     .name = .zigeth,
 
     // Semantic version
-    .version = "0.2.1",
+    .version = "0.3.0",
 
     // Unique package identifier
     // DO NOT change this unless forking the project
     .fingerprint = 0x6f8e09d114966ae6,
 
     // Minimum Zig version required
-    .minimum_zig_version = "0.15.0",
+    .minimum_zig_version = "0.16.0",
 
     // Dependencies
     // To add a new dependency, use: zig fetch --save <url>
     .dependencies = .{
         .zig_eth_secp256k1 = .{
-            .url = "https://github.com/DaviRain-Su/zig-eth-secp256k1/archive/refs/heads/main.tar.gz",
-            .hash = "zig_eth_secp256k1-0.1.0-_U97sBjqDACdmkjL_I_1dncMBvOZ0iSxbcMg4pIcVM4P",
+            .url = "https://github.com/jsign/zig-eth-secp256k1/archive/refs/heads/main.tar.gz",
+            .hash = "zig_eth_secp256k1-0.1.0-_U97sAbrDAAB9Q-p2ik2QqpECd08t0meJdb11Rh-HnGo",
         },
     },
     .paths = .{

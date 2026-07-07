@@ -184,22 +184,20 @@ pub fn formatError(
     var result: std.ArrayList(u8) = .empty;
     errdefer result.deinit(allocator);
 
-    const writer = result.writer(allocator);
-
     if (context) |ctx| {
-        try writer.print("[{s}] ", .{ctx.module});
+        try result.print(allocator, "[{s}] ", .{ctx.module});
 
         if (ctx.code) |code| {
-            try writer.print("Error {}: ", .{code});
+            try result.print(allocator, "Error {}: ", .{code});
         }
 
-        try writer.print("{s} failed: {s}", .{ ctx.operation, @errorName(err) });
+        try result.print(allocator, "{s} failed: {s}", .{ ctx.operation, @errorName(err) });
 
         if (ctx.details) |details| {
-            try writer.print("\n  Details: {s}", .{details});
+            try result.print(allocator, "\n  Details: {s}", .{details});
         }
     } else {
-        try writer.print("Error: {s}", .{@errorName(err)});
+        try result.print(allocator, "Error: {s}", .{@errorName(err)});
     }
 
     return try result.toOwnedSlice(allocator);
@@ -378,35 +376,34 @@ pub const ErrorFormatter = struct {
     ) ![]const u8 {
         var result: std.ArrayList(u8) = .empty;
         errdefer result.deinit(self.allocator);
-
-        const writer = result.writer(self.allocator);
+        const a = self.allocator;
 
         if (self.use_colors) {
-            try writer.writeAll("\x1b[31m"); // Red
+            try result.appendSlice(a, "\x1b[31m"); // Red
         }
 
-        try writer.writeAll("❌ Error");
+        try result.appendSlice(a, "❌ Error");
 
         if (context) |ctx| {
-            try writer.print(" in {s}.{s}", .{ ctx.module, ctx.operation });
+            try result.print(a, " in {s}.{s}", .{ ctx.module, ctx.operation });
         }
 
         if (self.use_colors) {
-            try writer.writeAll("\x1b[0m"); // Reset
+            try result.appendSlice(a, "\x1b[0m"); // Reset
         }
 
-        try writer.print(": {s}\n", .{@errorName(err)});
+        try result.print(a, ": {s}\n", .{@errorName(err)});
 
         if (context) |ctx| {
             if (ctx.code) |code| {
-                try writer.print("   Code: {}\n", .{code});
+                try result.print(a, "   Code: {}\n", .{code});
             }
             if (ctx.details) |details| {
-                try writer.print("   Details: {s}\n", .{details});
+                try result.print(a, "   Details: {s}\n", .{details});
             }
         }
 
-        return try result.toOwnedSlice(self.allocator);
+        return try result.toOwnedSlice(a);
     }
 
     /// Format error as structured log entry
@@ -417,25 +414,24 @@ pub const ErrorFormatter = struct {
     ) ![]const u8 {
         var result: std.ArrayList(u8) = .empty;
         errdefer result.deinit(self.allocator);
+        const a = self.allocator;
 
-        const writer = result.writer(self.allocator);
-
-        try writer.writeAll("[ERROR] ");
-        try writer.writeAll(@errorName(err));
+        try result.appendSlice(a, "[ERROR] ");
+        try result.appendSlice(a, @errorName(err));
 
         if (context) |ctx| {
-            try writer.print(" module={s} operation={s}", .{ ctx.module, ctx.operation });
+            try result.print(a, " module={s} operation={s}", .{ ctx.module, ctx.operation });
 
             if (ctx.code) |code| {
-                try writer.print(" code={}", .{code});
+                try result.print(a, " code={}", .{code});
             }
 
             if (ctx.details) |details| {
-                try writer.print(" details=\"{s}\"", .{details});
+                try result.print(a, " details=\"{s}\"", .{details});
             }
         }
 
-        return try result.toOwnedSlice(self.allocator);
+        return try result.toOwnedSlice(a);
     }
 };
 
@@ -500,7 +496,12 @@ pub const ErrorRecovery = struct {
                     delay_ms,
                 });
 
-                std.time.sleep(delay_ms * std.time.ns_per_ms);
+                // std.time.sleep was removed in Zig 0.16; use libc.
+                var req: std.c.timespec = .{
+                    .sec = @intCast(delay_ms / 1000),
+                    .nsec = @intCast((delay_ms % 1000) * std.time.ns_per_ms),
+                };
+                _ = std.c.nanosleep(&req, null);
                 delay_ms *= 2; // Exponential backoff
             }
         }
@@ -522,22 +523,22 @@ pub const ErrorRecovery = struct {
 };
 
 /// Error reporting for production environments
+///
+/// Zig 0.16 removed the std.fs.File API this reporter used to write
+/// through; the log_file sink is a no-op until it's ported to the
+/// new Io-based file API. Callers still get stderr logging via logError.
 pub const ErrorReporter = struct {
     allocator: std.mem.Allocator,
-    log_file: ?std.fs.File,
+    log_file: ?*anyopaque,
 
-    pub fn init(allocator: std.mem.Allocator, log_file: ?std.fs.File) ErrorReporter {
+    pub fn init(allocator: std.mem.Allocator, log_file: ?*anyopaque) ErrorReporter {
         return .{
             .allocator = allocator,
             .log_file = log_file,
         };
     }
 
-    pub fn deinit(self: *ErrorReporter) void {
-        if (self.log_file) |file| {
-            file.close();
-        }
-    }
+    pub fn deinit(_: *ErrorReporter) void {}
 
     /// Report error to log file
     pub fn report(
@@ -545,19 +546,8 @@ pub const ErrorReporter = struct {
         err: anyerror,
         context: ErrorContext,
     ) !void {
-        const timestamp = std.time.timestamp();
-
-        const formatter = ErrorFormatter.init(self.allocator, false);
-        const log_entry = try formatter.toLog(err, context);
-        defer self.allocator.free(log_entry);
-
-        if (self.log_file) |file| {
-            var w = file.writer(&.{});
-            const writer = &w.interface;
-            try writer.print("[{}] {s}\n", .{ timestamp, log_entry });
-        }
-
-        // Also log to stderr
+        _ = self;
+        // Log-file sink disabled during Zig 0.16 migration; stderr only.
         logError(err, context);
     }
 

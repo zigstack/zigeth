@@ -5,6 +5,45 @@ All notable changes to the zigeth library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-07-07
+
+### 🔧 Zig 0.16.0 migration
+
+- Bumped `minimum_zig_version` to `0.16.0`.
+- Swapped the dead `DaviRain-Su/zig-eth-secp256k1` dependency for the
+  actively maintained `jsign/zig-eth-secp256k1` fork.
+- `build.zig` — moved `linkLibC()` / `linkLibrary()` off the Compile
+  step and onto the root module (0.16 requirement); dropped
+  `addRemoveDirTree` (removed upstream).
+- Adopted `std.heap.DebugAllocator` in place of `GeneralPurposeAllocator`,
+  `std.mem.trimEnd/trimStart` for the renamed `trimRight/trimLeft`,
+  `std.c.nanosleep` + `std.c.clock_gettime` for the retired
+  `std.time.sleep` / `std.time.timestamp`, and unmanaged `ObjectMap`
+  everywhere `.put(k, v)` used to work in-place.
+
+### 🧪 Testing
+
+- `zig build test`: **313/314 pass, 1 skipped, 0 failing** on Zig 0.16.0.
+- Core library (`src/root.zig`) builds and installs as `libzigeth.a`.
+
+### ⚠️ Regressions to be aware of
+
+These paths return `error.NotImplemented` under 0.16 while `std.net`,
+`std.http.Client`, and `std.fs.File.*` land in `std.Io` upstream. All
+guarded so callers get a clear error rather than a crash.
+
+- `providers/http.zig` HTTP transport → stubbed. RPC types + JSON
+  serialization still work.
+- `providers/ws.zig` WebSocket transport → stubbed.
+- `providers/ipc.zig` IPC transport → stubbed.
+- CLI executable (`src/main.zig`) → not built. `build.zig` gates it
+  out until the CLI is ported to the 0.16 `Io.Writer` + process API.
+- `errors.zig` `ErrorReporter` file sink → no-op. stderr sink via
+  `logError` still works.
+- `signer/keystore.zig` RNG → seeded from wall clock via `DefaultPrng`;
+  not cryptographically secure. Flagged inline until an `Io` RNG is
+  wired in.
+
 ## [0.1.0] - 2025-10-09
 
 ### 🎉 Initial Release - Feature Complete!

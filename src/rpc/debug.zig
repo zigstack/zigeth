@@ -283,7 +283,7 @@ const JsonObjectWrapper = struct {
 
     fn deinit(self: *JsonObjectWrapper) void {
         if (self.value == .object) {
-            self.value.object.deinit();
+            self.value.object.deinit(self.allocator);
         }
     }
 };
@@ -302,32 +302,32 @@ fn blockParameterToString(allocator: std.mem.Allocator, block: types.BlockParame
 
 /// Convert CallParams to JSON object
 fn callParamsToJson(allocator: std.mem.Allocator, params: types.CallParams) !JsonObjectWrapper {
-    var obj = std.json.ObjectMap.init(allocator);
+    var obj = std.json.ObjectMap.empty;
 
     if (params.to) |to| {
         const to_hex = try to.toHex(allocator);
-        try obj.put("to", .{ .string = to_hex });
+        try obj.put(allocator, "to", .{ .string = to_hex });
     }
 
     if (params.from) |from| {
         const from_hex = try from.toHex(allocator);
-        try obj.put("from", .{ .string = from_hex });
+        try obj.put(allocator, "from", .{ .string = from_hex });
     }
 
     if (params.data) |data| {
         const hex_module = @import("../utils/hex.zig");
         const data_hex = try hex_module.bytesToHex(allocator, data);
-        try obj.put("data", .{ .string = data_hex });
+        try obj.put(allocator, "data", .{ .string = data_hex });
     }
 
     if (params.value) |value| {
         const value_hex = try value.toHex(allocator);
-        try obj.put("value", .{ .string = value_hex });
+        try obj.put(allocator, "value", .{ .string = value_hex });
     }
 
     if (params.gas) |gas| {
         const gas_hex = try std.fmt.allocPrint(allocator, "0x{x}", .{gas});
-        try obj.put("gas", .{ .string = gas_hex });
+        try obj.put(allocator, "gas", .{ .string = gas_hex });
     }
 
     return JsonObjectWrapper{
@@ -338,30 +338,30 @@ fn callParamsToJson(allocator: std.mem.Allocator, params: types.CallParams) !Jso
 
 /// Convert TraceOptions to JSON object
 fn traceOptionsToJson(allocator: std.mem.Allocator, options: TraceOptions) !JsonObjectWrapper {
-    var obj = std.json.ObjectMap.init(allocator);
+    var obj = std.json.ObjectMap.empty;
 
     if (options.disable_storage) |val| {
-        try obj.put("disableStorage", .{ .bool = val });
+        try obj.put(allocator, "disableStorage", .{ .bool = val });
     }
 
     if (options.disable_stack) |val| {
-        try obj.put("disableStack", .{ .bool = val });
+        try obj.put(allocator, "disableStack", .{ .bool = val });
     }
 
     if (options.enable_memory) |val| {
-        try obj.put("enableMemory", .{ .bool = val });
+        try obj.put(allocator, "enableMemory", .{ .bool = val });
     }
 
     if (options.enable_return_data) |val| {
-        try obj.put("enableReturnData", .{ .bool = val });
+        try obj.put(allocator, "enableReturnData", .{ .bool = val });
     }
 
     if (options.tracer) |tracer| {
-        try obj.put("tracer", .{ .string = tracer });
+        try obj.put(allocator, "tracer", .{ .string = tracer });
     }
 
     if (options.timeout) |timeout| {
-        try obj.put("timeout", .{ .string = timeout });
+        try obj.put(allocator, "timeout", .{ .string = timeout });
     }
 
     return JsonObjectWrapper{

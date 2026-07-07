@@ -3,38 +3,35 @@ const std = @import("std");
 const zigeth = @import("zigeth");
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
-
-    var stdout_writer = std.fs.File.stdout().writer(&.{});
-    const stdout = &stdout_writer.interface;
 
     // Parse command line arguments
     const args = try std.process.argsAlloc(allocator);
     defer std.process.argsFree(allocator, args);
 
     if (args.len < 2) {
-        try printUsage(stdout);
+        printUsage();
         return;
     }
 
     const command = args[1];
 
     if (std.mem.eql(u8, command, "version")) {
-        try stdout.print("zigeth v0.1.0\n", .{});
+        std.debug.print("zigeth v0.1.0\n", .{});
     } else if (std.mem.eql(u8, command, "help")) {
-        try printUsage(stdout);
+        printUsage();
     } else if (std.mem.eql(u8, command, "address")) {
-        try handleAddressCommand(allocator, stdout, args[2..]);
+        try handleAddressCommand(allocator, args[2..]);
     } else {
-        try stdout.print("Unknown command: {s}\n\n", .{command});
-        try printUsage(stdout);
+        std.debug.print("Unknown command: {s}\n\n", .{command});
+        printUsage();
     }
 }
 
-fn printUsage(writer: anytype) !void {
-    try writer.print(
+fn printUsage() void {
+    std.debug.print(
         \\Zigeth - Ethereum library and CLI tool
         \\
         \\Usage: zigeth <command> [options]
@@ -55,9 +52,9 @@ fn printUsage(writer: anytype) !void {
     , .{});
 }
 
-fn handleAddressCommand(allocator: std.mem.Allocator, writer: anytype, args: []const [:0]const u8) !void {
+fn handleAddressCommand(allocator: std.mem.Allocator, args: []const [:0]const u8) !void {
     if (args.len == 0) {
-        try writer.print("Error: address command requires a subcommand\n", .{});
+        std.debug.print("Error: address command requires a subcommand\n", .{});
         return;
     }
 
@@ -68,16 +65,16 @@ fn handleAddressCommand(allocator: std.mem.Allocator, writer: anytype, args: []c
         const addr = zigeth.primitives.Address.fromBytes([_]u8{0} ** 20);
         const hex_str = try addr.toHex(allocator);
         defer allocator.free(hex_str);
-        try writer.print("Address: {s}\n", .{hex_str});
+        std.debug.print("Address: {s}\n", .{hex_str});
     } else if (std.mem.eql(u8, subcommand, "checksum")) {
         if (args.len < 2) {
-            try writer.print("Error: checksum requires an address argument\n", .{});
+            std.debug.print("Error: checksum requires an address argument\n", .{});
             return;
         }
         // This is a placeholder - checksum implementation would go here
-        try writer.print("Checksum not yet implemented\n", .{});
+        std.debug.print("Checksum not yet implemented\n", .{});
     } else {
-        try writer.print("Unknown address subcommand: {s}\n", .{subcommand});
+        std.debug.print("Unknown address subcommand: {s}\n", .{subcommand});
     }
 }
 

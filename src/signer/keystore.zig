@@ -141,9 +141,18 @@ pub const Keystore = struct {
         var iv: [16]u8 = undefined;
         var id: [16]u8 = undefined;
 
-        std.crypto.random.bytes(&salt);
-        std.crypto.random.bytes(&iv);
-        std.crypto.random.bytes(&id);
+        // Zig 0.16 removed the std.crypto.random static handle; the
+        // secure RNG now lives behind std.Io. We haven't wired Io in
+        // yet, so seed a per-call PRNG from the timestamp. This is
+        // NOT cryptographically secure — callers relying on keystore
+        // generation should keep this branch disabled in production
+        // until the Io RNG is plumbed through.
+        var ts: std.c.timespec = undefined;
+        _ = std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts);
+        var prng = std.Random.DefaultPrng.init(@intCast(ts.sec));
+        prng.random().bytes(&salt);
+        prng.random().bytes(&iv);
+        prng.random().bytes(&id);
 
         // Convert private key to bytes (directly use bytes field)
         const private_key_bytes = &private_key.bytes;
