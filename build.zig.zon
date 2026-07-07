@@ -2,7 +2,7 @@
     .name = .zigeth,
 
     // Semantic version
-    .version = "0.5.0",
+    .version = "0.5.1",
 
     // Unique package identifier
     // DO NOT change this unless forking the project

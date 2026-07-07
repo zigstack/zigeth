@@ -5,6 +5,23 @@ All notable changes to the zigeth library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-07-07
+
+### 🔧 CI + cross-platform
+
+- Bumped all workflows (ci, release, auto-release) to Zig 0.16.0 and
+  switched from the deprecated `goto-bus-stop/setup-zig` to the
+  maintained `mlugg/setup-zig@v2`.
+- Extracted `src/time_compat.zig` — `nowSeconds()` / `sleepMs()` that
+  work on Windows (self-declared kernel32 externs) as well as POSIX,
+  replacing the inline `std.c.clock_gettime` / `std.c.nanosleep` calls
+  that broke the Windows CI matrix.
+- Fixed malformed YAML (un-indented multi-line commit message) in the
+  `update-version-pr` workflow that produced a startup-failure on every
+  push.
+
+CI is now green across Linux, macOS, and Windows on Zig 0.16.0.
+
 ## [0.5.0] - 2026-07-07
 
 ### 🔧 Zig 0.16.0 migration
