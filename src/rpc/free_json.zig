@@ -19,7 +19,7 @@ pub fn freeJsonValue(allocator: std.mem.Allocator, value: std.json.Value) void {
                 allocator.free(entry.key_ptr.*);
                 freeJsonValue(allocator, entry.value_ptr.*);
             }
-            @constCast(&obj).deinit();
+            @constCast(&obj).deinit(allocator);
         },
     }
 }

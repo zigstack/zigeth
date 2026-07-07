@@ -100,28 +100,51 @@ pub const RpcClient = struct {
     }
 };
 
-/// HTTP transport for RPC client.
+/// Errors surfaced by the HTTP transport.
+pub const TransportError = error{
+    /// The underlying std.http.Client.fetch call failed (DNS, TCP, TLS,
+    /// timeout, etc.).
+    HttpRequestFailed,
+    /// The server responded with a non-2xx status.
+    HttpStatusError,
+} || std.mem.Allocator.Error;
+
+/// HTTP(S) transport for the JSON-RPC client.
 ///
-/// Zig 0.16 rewrote std.http.Client around the new Io interface and
-/// dropped the response_writer field this used to plug into. Until the
-/// transport is ported to the new API, this is a compile-time stub —
-/// send() returns error.NotImplemented so consumers surface the gap
-/// rather than silently succeed.
+/// Built on `std.http.Client` (which performs TLS for `https://`
+/// endpoints) driven by a `std.Io.Threaded` event loop. Each transport
+/// owns its own client + loop; `RpcClient.call` currently constructs one
+/// per request, so the connection is not pooled across calls — fine for a
+/// low-frequency polling consumer. A future optimization is to hoist the
+/// client into `RpcClient` and reuse it (keep-alive) across calls.
 pub const HttpTransport = struct {
     allocator: std.mem.Allocator,
     url: []const u8,
     headers: std.StringHashMap([]const u8),
+    threaded: *std.Io.Threaded,
+    client: std.http.Client,
 
     pub fn init(allocator: std.mem.Allocator, url: []const u8) !HttpTransport {
         const url_copy = try allocator.dupe(u8, url);
+        errdefer allocator.free(url_copy);
+
+        const threaded = try allocator.create(std.Io.Threaded);
+        errdefer allocator.destroy(threaded);
+        threaded.* = std.Io.Threaded.init(allocator, .{});
+
         return .{
             .allocator = allocator,
             .url = url_copy,
             .headers = std.StringHashMap([]const u8).init(allocator),
+            .threaded = threaded,
+            .client = .{ .allocator = allocator, .io = threaded.io() },
         };
     }
 
     pub fn deinit(self: *HttpTransport) void {
+        self.client.deinit();
+        self.threaded.deinit();
+        self.allocator.destroy(self.threaded);
         self.allocator.free(self.url);
 
         var it = self.headers.iterator();
@@ -138,10 +161,34 @@ pub const HttpTransport = struct {
         try self.headers.put(key_copy, value_copy);
     }
 
+    /// POST `request` to the endpoint and return the response body. Caller
+    /// owns the returned slice.
     pub fn send(self: *HttpTransport, request: []const u8) ![]u8 {
-        _ = self;
-        _ = request;
-        return error.NotImplemented;
+        // Build the extra-headers slice from the configured headers.
+        var extra = try self.allocator.alloc(std.http.Header, self.headers.count());
+        defer self.allocator.free(extra);
+        var it = self.headers.iterator();
+        var i: usize = 0;
+        while (it.next()) |entry| : (i += 1) {
+            extra[i] = .{ .name = entry.key_ptr.*, .value = entry.value_ptr.* };
+        }
+
+        var resp = std.Io.Writer.Allocating.init(self.allocator);
+        defer resp.deinit();
+
+        const result = self.client.fetch(.{
+            .location = .{ .url = self.url },
+            .method = .POST,
+            .payload = request,
+            .response_writer = &resp.writer,
+            .extra_headers = extra,
+        }) catch return error.HttpRequestFailed;
+
+        // Accept any 2xx.
+        const code = @intFromEnum(result.status);
+        if (code < 200 or code >= 300) return error.HttpStatusError;
+
+        return try self.allocator.dupe(u8, resp.written());
     }
 };
 

@@ -169,7 +169,7 @@ pub const EthNamespace = struct {
 
     /// eth_call - Executes a message call (doesn't create a transaction)
     pub fn call(self: EthNamespace, params: types.CallParams, block: types.BlockParameter) ![]u8 {
-        const call_obj = try callParamsToJson(self.client.allocator, params);
+        var call_obj = try callParamsToJson(self.client.allocator, params);
         defer call_obj.deinit();
 
         const block_param = try blockParameterToString(self.client.allocator, block);
@@ -193,7 +193,7 @@ pub const EthNamespace = struct {
 
     /// eth_estimateGas - Estimates gas needed for a transaction
     pub fn estimateGas(self: EthNamespace, params: types.CallParams) !u64 {
-        const call_obj = try callParamsToJson(self.client.allocator, params);
+        var call_obj = try callParamsToJson(self.client.allocator, params);
         defer call_obj.deinit();
 
         var rpc_params = [_]std.json.Value{
@@ -318,7 +318,7 @@ pub const EthNamespace = struct {
 
     /// eth_getLogs - Returns an array of logs matching the filter
     pub fn getLogs(self: EthNamespace, filter: types.FilterOptions) ![]Log {
-        const filter_obj = try filterOptionsToJson(self.client.allocator, filter);
+        var filter_obj = try filterOptionsToJson(self.client.allocator, filter);
         defer filter_obj.deinit();
 
         var params = [_]std.json.Value{
@@ -337,7 +337,7 @@ pub const EthNamespace = struct {
             for (logs.items) |log| {
                 log.deinit();
             }
-            logs.deinit();
+            logs.deinit(self.client.allocator);
         }
 
         for (result.array.items) |log_json| {
@@ -373,7 +373,7 @@ pub const EthNamespace = struct {
 
     /// eth_sendTransaction - Creates and sends a transaction
     pub fn sendTransaction(self: EthNamespace, params: types.TransactionParams) !Hash {
-        const tx_obj = try transactionParamsToJson(self.client.allocator, params);
+        var tx_obj = try transactionParamsToJson(self.client.allocator, params);
         defer tx_obj.deinit();
 
         var rpc_params = [_]std.json.Value{
@@ -537,7 +537,7 @@ pub const EthNamespace = struct {
 
     /// eth_signTransaction - Signs a transaction
     pub fn signTransaction(self: EthNamespace, params: types.TransactionParams) ![]u8 {
-        const tx_obj = try transactionParamsToJson(self.client.allocator, params);
+        var tx_obj = try transactionParamsToJson(self.client.allocator, params);
         defer tx_obj.deinit();
 
         var rpc_params = [_]std.json.Value{
@@ -585,14 +585,34 @@ const JsonObjectWrapper = struct {
 
     fn deinit(self: *JsonObjectWrapper) void {
         if (self.value == .object) {
-            // Free all string values that were allocated
+            // Object keys here are string literals (never allocated); the
+            // values are heap-allocated (hex strings, or arrays of them, as
+            // in a `topics` filter). Recursively free the values so nested
+            // arrays don't leak, then drop the map itself.
             var iter = self.value.object.iterator();
             while (iter.next()) |entry| {
-                if (entry.value_ptr.* == .string) {
-                    self.allocator.free(entry.value_ptr.string);
-                }
+                freeValue(self.allocator, entry.value_ptr.*);
             }
             self.value.object.deinit(self.allocator);
+        }
+    }
+
+    /// Recursively free a JSON value's allocated data. Object keys are left
+    /// untouched — this wrapper only ever builds objects with literal keys.
+    fn freeValue(allocator: std.mem.Allocator, value: std.json.Value) void {
+        switch (value) {
+            .string => |s| allocator.free(s),
+            .number_string => |ns| allocator.free(ns),
+            .array => |arr| {
+                for (arr.items) |item| freeValue(allocator, item);
+                @constCast(&arr).deinit();
+            },
+            .object => |obj| {
+                var it = obj.iterator();
+                while (it.next()) |e| freeValue(allocator, e.value_ptr.*);
+                @constCast(&obj).deinit(allocator);
+            },
+            else => {},
         }
     }
 };
@@ -1333,4 +1353,27 @@ test "call params to json" {
     try std.testing.expect(json_obj.value == .object);
     try std.testing.expect(json_obj.value.object.contains("to"));
     try std.testing.expect(json_obj.value.object.contains("gas"));
+}
+
+test "filter options with topics to json frees cleanly" {
+    // Guards the JsonObjectWrapper.deinit leak fix: the topics array's hex
+    // strings must be freed, not just top-level string members. Runs under
+    // testing.allocator, which fails the test on any leak.
+    const allocator = std.testing.allocator;
+
+    const topic = Hash.fromBytes([_]u8{0xAB} ** 32);
+    var topics = [_]?Hash{topic};
+    const filter = types.FilterOptions{
+        .from_block = .{ .number = 100 },
+        .to_block = .{ .number = 200 },
+        .address = Address.fromBytes([_]u8{0xCD} ** 20),
+        .topics = topics[0..],
+    };
+
+    var obj = try filterOptionsToJson(allocator, filter);
+    defer obj.deinit();
+
+    try std.testing.expect(obj.value == .object);
+    try std.testing.expect(obj.value.object.contains("topics"));
+    try std.testing.expect(obj.value.object.contains("address"));
 }

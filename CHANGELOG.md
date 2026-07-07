@@ -5,6 +5,35 @@ All notable changes to the zigeth library will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-07-07
+
+### ✨ Working HTTP(S) JSON-RPC transport
+
+`HttpTransport.send` is now implemented on top of Zig 0.16's
+`std.http.Client` (driven by a `std.Io.Threaded` loop), replacing the
+`error.NotImplemented` stub. TLS is handled by the client, so `https://`
+RPC endpoints work out of the box. The whole provider surface
+(`provider.getEth().chainId()` / `blockNumber()` / `getLogs(filter)` …)
+now performs real network calls.
+
+Verified live against Arbitrum Sepolia: `eth_chainId`, `eth_blockNumber`,
+and `eth_getLogs` all round-trip over HTTPS with no leaks.
+
+### 🐛 Fixes surfaced by exercising the RPC path
+
+These were latent since the 0.15 → 0.16 migration — the code paths only
+compiled once a real transport forced their analysis:
+
+- `eth.zig` — `filterOptionsToJson` / `callParamsToJson` /
+  `transactionParamsToJson` results are bound with `var` so their
+  `deinit` (which takes `*self`) type-checks.
+- `eth.zig` `getLogs` — the errdefer `logs.deinit()` now passes the
+  allocator (`std.ArrayList` is unmanaged in 0.16).
+- `free_json.zig` — `ObjectMap.deinit` now passes the allocator.
+- `JsonObjectWrapper.deinit` — recursively frees value data, fixing a
+  leak of the hex strings inside a `topics` filter array (regression
+  test added).
+
 ## [0.5.1] - 2026-07-07
 
 ### 🔧 CI + cross-platform
