@@ -48,15 +48,10 @@ jobs:
       - name: Commit changes
         run: |
           VERSION="${{ inputs.version }}"
-          
+
           git add build.zig.zon VERSION
-          git commit -m "chore: bump version to v$VERSION
+          git commit -m "chore: bump version to v$VERSION" -m "This updates the version files after the v$VERSION release was created." -m "- Updated build.zig.zon to version $VERSION" -m "- Updated VERSION file to $VERSION"
 
-This updates the version files after the v$VERSION release was created.
-
-- Updated build.zig.zon to version $VERSION
-- Updated VERSION file to $VERSION"
-          
           echo "✅ Changes committed"
 
       - name: Push branch
