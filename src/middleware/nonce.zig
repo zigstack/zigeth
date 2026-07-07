@@ -2,6 +2,14 @@ const std = @import("std");
 const Address = @import("../primitives/address.zig").Address;
 const Provider = @import("../providers/provider.zig").Provider;
 
+// std.time.timestamp / milliTimestamp were removed in Zig 0.16 (moved
+// under std.Io). Read the wall clock directly via libc.
+fn wallClockSeconds() i64 {
+    var ts: std.c.timespec = undefined;
+    _ = std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts);
+    return @intCast(ts.sec);
+}
+
 /// Nonce management strategy
 pub const NonceStrategy = enum {
     /// Get nonce from provider for each transaction
@@ -75,7 +83,7 @@ pub const NonceMiddleware = struct {
             },
             .hybrid => {
                 // Check if we need to sync with provider
-                const now = std.time.timestamp();
+                const now = wallClockSeconds();
                 const should_sync = blk: {
                     if (self.last_sync.get(address)) |last| {
                         break :blk (now - last) >= self.sync_interval_seconds;
@@ -116,7 +124,7 @@ pub const NonceMiddleware = struct {
     pub fn trackPendingTx(self: *NonceMiddleware, address: Address, nonce: u64, tx_hash: ?[32]u8) !void {
         const pending_tx = PendingTransaction{
             .nonce = nonce,
-            .timestamp = std.time.timestamp(),
+            .timestamp = wallClockSeconds(),
             .hash = tx_hash,
         };
 
@@ -164,7 +172,7 @@ pub const NonceMiddleware = struct {
     pub fn syncNonce(self: *NonceMiddleware, address: Address) !u64 {
         const nonce = try self.provider.getTransactionCount(address);
         try self.nonce_cache.put(address, nonce);
-        try self.last_sync.put(address, std.time.timestamp());
+        try self.last_sync.put(address, wallClockSeconds());
         return nonce;
     }
 
@@ -219,7 +227,7 @@ pub const NonceMiddleware = struct {
     /// Clean up old pending transactions (older than timeout)
     pub fn cleanupOldPending(self: *NonceMiddleware, address: Address, timeout_seconds: i64) void {
         if (self.pending_txs.getPtr(address)) |list| {
-            const now = std.time.timestamp();
+            const now = wallClockSeconds();
             var i: usize = 0;
             while (i < list.items.len) {
                 if (now - list.items[i].timestamp > timeout_seconds) {

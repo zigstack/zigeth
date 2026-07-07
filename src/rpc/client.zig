@@ -100,10 +100,15 @@ pub const RpcClient = struct {
     }
 };
 
-/// HTTP transport for RPC client (Zig 0.15.x compatible)
+/// HTTP transport for RPC client.
+///
+/// Zig 0.16 rewrote std.http.Client around the new Io interface and
+/// dropped the response_writer field this used to plug into. Until the
+/// transport is ported to the new API, this is a compile-time stub —
+/// send() returns error.NotImplemented so consumers surface the gap
+/// rather than silently succeed.
 pub const HttpTransport = struct {
     allocator: std.mem.Allocator,
-    client: std.http.Client,
     url: []const u8,
     headers: std.StringHashMap([]const u8),
 
@@ -111,14 +116,12 @@ pub const HttpTransport = struct {
         const url_copy = try allocator.dupe(u8, url);
         return .{
             .allocator = allocator,
-            .client = std.http.Client{ .allocator = allocator },
             .url = url_copy,
             .headers = std.StringHashMap([]const u8).init(allocator),
         };
     }
 
     pub fn deinit(self: *HttpTransport) void {
-        self.client.deinit();
         self.allocator.free(self.url);
 
         var it = self.headers.iterator();
@@ -136,49 +139,9 @@ pub const HttpTransport = struct {
     }
 
     pub fn send(self: *HttpTransport, request: []const u8) ![]u8 {
-        // Use arena allocator for temporary allocations
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const alloc = arena.allocator();
-
-        // Build extra headers array
-        var header_list = try std.ArrayList(std.http.Header).initCapacity(alloc, 0);
-        defer header_list.deinit(alloc);
-
-        var it = self.headers.iterator();
-        while (it.next()) |entry| {
-            try header_list.append(alloc, .{
-                .name = entry.key_ptr.*,
-                .value = entry.value_ptr.*,
-            });
-        }
-
-        // Create response writer
-        var body_writer = std.io.Writer.Allocating.init(alloc);
-        defer body_writer.deinit();
-
-        // Make HTTP request using fetch API (Zig 0.15.x)
-        const fetch_result = try self.client.fetch(.{
-            .location = .{ .url = self.url },
-            .method = .POST,
-            .payload = request,
-            .extra_headers = header_list.items,
-            .response_writer = &body_writer.writer,
-            .keep_alive = false,
-        });
-
-        // Check status
-        const status = @intFromEnum(fetch_result.status);
-        if (status < 200 or status >= 300) {
-            return error.HttpRequestFailed;
-        }
-
-        // Copy response body to caller's allocator
-        const written = body_writer.written();
-        const response_bytes = try self.allocator.alloc(u8, written.len);
-        @memcpy(response_bytes, written);
-
-        return response_bytes;
+        _ = self;
+        _ = request;
+        return error.NotImplemented;
     }
 };
 
@@ -200,12 +163,12 @@ fn copyJsonValue(allocator: std.mem.Allocator, value: std.json.Value) !std.json.
             break :blk .{ .array = new_array };
         },
         .object => |obj| blk: {
-            var new_obj = std.json.ObjectMap.init(allocator);
+            var new_obj = std.json.ObjectMap.empty;
             var it = obj.iterator();
             while (it.next()) |entry| {
                 const key_copy = try allocator.dupe(u8, entry.key_ptr.*);
                 const value_copy = try copyJsonValue(allocator, entry.value_ptr.*);
-                try new_obj.put(key_copy, value_copy);
+                try new_obj.put(allocator, key_copy, value_copy);
             }
             break :blk .{ .object = new_obj };
         },

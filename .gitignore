@@ -144,3 +144,6 @@ notes.txt
 TODO.txt
 NOTES.md
 
+
+# Zig 0.16 fetch cache
+zig-pkg/

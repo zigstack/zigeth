@@ -63,7 +63,9 @@ pub const Wallet = struct {
 
     /// Generate a new random wallet
     pub fn generate(allocator: std.mem.Allocator) !Wallet {
-        var prng = std.Random.DefaultPrng.init(@intCast(std.time.timestamp()));
+        var ts: std.c.timespec = undefined;
+        _ = std.c.clock_gettime(std.c.CLOCK.REALTIME, &ts);
+        var prng = std.Random.DefaultPrng.init(@intCast(ts.sec));
         const random = prng.random();
         const private_key = try PrivateKey.generate(random);
         return try init(allocator, private_key);
